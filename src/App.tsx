@@ -12,6 +12,7 @@ import Progression from "./pages/Progression";
 import Catalog from "./pages/Catalog";
 import Advisor from "./pages/Advisor";
 import Requirements from "./pages/Requirements";
+import Registration from "./pages/Registration";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
           <Route path="/catalog" element={<Catalog />} />
           <Route path="/advisor" element={<Advisor />} />
           <Route path="/requirements" element={<Requirements />} />
+          <Route path="/registration" element={<Registration />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import Navigation from "@/components/Navigation";
+import ChatBot from "@/components/ChatBot";
 
 interface Course {
   id: string;
@@ -247,6 +248,7 @@ const PlanAhead = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5">
       <Navigation />
+      <ChatBot context="User is creating a 4-year academic plan with AI assistance, including double major/minor options" />
       <div className="max-w-7xl mx-auto p-6">
         <h1 className="text-4xl font-bold mb-2">Plan Ahead - 4 Year Course Plan</h1>
         <p className="text-muted-foreground mb-8">Generate and customize your complete degree plan with AI assistance</p>
