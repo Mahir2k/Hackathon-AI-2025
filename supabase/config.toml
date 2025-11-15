@@ -1,1 +1,7 @@
 project_id = "dygxonogkauxotlcfdtp"
+
+[functions.generate-semester]
+verify_jwt = true
+
+[functions.generate-four-year-plan]
+verify_jwt = true

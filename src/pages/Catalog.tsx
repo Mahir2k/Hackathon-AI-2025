@@ -26,6 +26,7 @@ const Catalog = () => {
   const [filteredCourses, setFilteredCourses] = useState<Course[]>([]);
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  const [selectedDepartment, setSelectedDepartment] = useState<string>("All");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -48,8 +49,12 @@ const Catalog = () => {
       filtered = filtered.filter((c) => c.category === selectedCategory);
     }
 
+    if (selectedDepartment !== "All") {
+      filtered = filtered.filter((c) => c.department === selectedDepartment);
+    }
+
     setFilteredCourses(filtered);
-  }, [search, selectedCategory, courses]);
+  }, [search, selectedCategory, selectedDepartment, courses]);
 
   const fetchCourses = async () => {
     const { data, error } = await supabase
@@ -70,6 +75,7 @@ const Catalog = () => {
   };
 
   const categories = ["All", "Major", "HSS", "Tech", "Free"];
+  const departments = ["All", "Computer Science", "Mechanical Engineering", "Electrical Engineering", "Civil Engineering", "Chemical Engineering", "Business", "Economics", "Psychology", "Biology"];
 
   const getCategoryColor = (category: string) => {
     switch (category) {
@@ -98,7 +104,7 @@ const Catalog = () => {
 
         {/* Filters */}
         <Card className="p-6 mb-6">
-          <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex flex-col gap-4">
             <div className="flex-1">
               <div className="relative">
                 <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
@@ -111,17 +117,36 @@ const Catalog = () => {
               </div>
             </div>
             
-            <div className="flex gap-2 flex-wrap">
-              {categories.map((cat) => (
-                <Button
-                  key={cat}
-                  variant={selectedCategory === cat ? "default" : "outline"}
-                  onClick={() => setSelectedCategory(cat)}
-                  size="sm"
-                >
-                  {cat}
-                </Button>
-              ))}
+            <div>
+              <label className="text-sm font-medium mb-2 block">Category</label>
+              <div className="flex gap-2 flex-wrap">
+                {categories.map((cat) => (
+                  <Button
+                    key={cat}
+                    variant={selectedCategory === cat ? "default" : "outline"}
+                    onClick={() => setSelectedCategory(cat)}
+                    size="sm"
+                  >
+                    {cat}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium mb-2 block">Department / Major</label>
+              <div className="flex gap-2 flex-wrap">
+                {departments.map((dept) => (
+                  <Button
+                    key={dept}
+                    variant={selectedDepartment === dept ? "default" : "outline"}
+                    onClick={() => setSelectedDepartment(dept)}
+                    size="sm"
+                  >
+                    {dept}
+                  </Button>
+                ))}
+              </div>
             </div>
           </div>
         </Card>

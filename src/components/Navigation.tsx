@@ -32,6 +32,7 @@ const Navigation = () => {
 
   const navItems = [
     { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { path: "/plan-ahead", label: "Plan Ahead", icon: GitBranch },
     { path: "/progression", label: "Progression", icon: GitBranch },
     { path: "/catalog", label: "Course Catalog", icon: BookOpen },
     { path: "/requirements", label: "Requirements", icon: CheckSquare },
