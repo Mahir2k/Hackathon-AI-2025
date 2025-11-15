@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import Navigation from "@/components/Navigation";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -19,6 +20,7 @@ interface ApprovalRequest {
 }
 
 const Advisor = () => {
+  const navigate = useNavigate();
   const [requests, setRequests] = useState<ApprovalRequest[]>([]);
   const [availableSemesters, setAvailableSemesters] = useState<any[]>([]);
   const [selectedSemester, setSelectedSemester] = useState("");
@@ -66,9 +68,14 @@ const Advisor = () => {
       <Navigation />
       <ChatBot context="User is submitting semester plans for advisor approval" />
       <div className="max-w-4xl mx-auto p-6">
-        <div className="mb-8 flex items-center gap-3">
-          <FileCheck className="w-8 h-8 text-primary" />
-          <h1 className="text-3xl font-bold">Advisor Approval</h1>
+        <div className="mb-8 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <FileCheck className="w-8 h-8 text-primary" />
+            <h1 className="text-3xl font-bold">Advisor Approval</h1>
+          </div>
+          <Button variant="outline" onClick={() => navigate("/registration")}>
+            Go to Registration
+          </Button>
         </div>
         <Card className="p-6 mb-6">
           <h2 className="text-xl font-semibold mb-4">Submit Semester for Approval</h2>
@@ -91,6 +98,17 @@ const Advisor = () => {
                 <h3 className="font-semibold">{r.semester_plans.season} {r.semester_plans.year}</h3>
                 <Badge>{r.status === "pending" ? <Clock className="w-4 h-4" /> : r.status === "approved" ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />} {r.status}</Badge>
               </div>
+              {r.status === "approved" && (
+                <div className="mt-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => navigate("/registration")}
+                  >
+                    Register for this plan
+                  </Button>
+                </div>
+              )}
               {r.advisor_comments && <div className="mt-4 p-4 bg-muted rounded-lg"><p className="text-sm">{r.advisor_comments}</p></div>}
             </Card>
           ))}

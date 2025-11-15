@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Lock, AlertCircle } from "lucide-react";
+import { CheckCircle, Lock, AlertCircle, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import ChatBot from "@/components/ChatBot";
 
@@ -66,8 +66,35 @@ const Registration = () => {
   const registerForCourses = async (semesterId: string) => {
     setLoading(true);
     try {
-      // In a real implementation, this would integrate with Lehigh's registration system
-      // For now, we'll simulate the registration process
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("You must be signed in to register for courses.");
+      }
+
+      const semester = approvedSemesters.find((s) => s.id === semesterId);
+      if (!semester) {
+        throw new Error("Semester not found.");
+      }
+
+      const courseIds = semester.courses || [];
+
+      // Persist planned registrations into user_courses so other pages
+      // (Dashboard, Progression, etc.) can treat them as current courses.
+      for (const courseId of courseIds) {
+        await supabase.from("user_courses").upsert(
+          {
+            user_id: user.id,
+            course_id: courseId,
+            semester_year: semester.year,
+            // semester_season is stored as enum; string cast is fine here
+            semester_season: semester.season as any,
+          },
+          {
+            onConflict: "user_id,course_id",
+          }
+        );
+      }
+
       toast({
         title: "Registration Initiated",
         description: "Your courses have been added to your schedule. Check your Lehigh account for confirmation.",
@@ -94,9 +121,24 @@ const Registration = () => {
       <ChatBot context="User is viewing course registration page for approved semester plans" />
 
       <main className="container mx-auto px-4 py-8 max-w-6xl">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">Course Registration</h1>
-          <p className="text-muted-foreground">Register for approved semester plans</p>
+        <div className="mb-8 flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-4xl font-bold mb-2">Course Registration</h1>
+            <p className="text-muted-foreground">Register for approved semester plans</p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              window.open(
+                "https://reg-prod.ec.lehigh.edu/StudentRegistrationSsb/ssb/registration",
+                "_blank"
+              )
+            }
+          >
+            Open Lehigh Registration
+            <ExternalLink className="w-4 h-4 ml-2" />
+          </Button>
         </div>
 
         {approvedSemesters.length === 0 ? (

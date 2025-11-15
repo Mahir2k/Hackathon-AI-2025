@@ -97,6 +97,59 @@ export type Database = {
         }
         Relationships: []
       }
+      course_offerings: {
+        Row: {
+          id: string
+          course_id: string
+          year: number
+          season: Database["public"]["Enums"]["semester_season"]
+          section: string | null
+          crn: string | null
+          instructor_name: string | null
+          meeting_days: string[] | null
+          start_time: string | null
+          end_time: string | null
+          location: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          course_id: string
+          year: number
+          season: Database["public"]["Enums"]["semester_season"]
+          section?: string | null
+          crn?: string | null
+          instructor_name?: string | null
+          meeting_days?: string[] | null
+          start_time?: string | null
+          end_time?: string | null
+          location?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          course_id?: string
+          year?: number
+          season?: Database["public"]["Enums"]["semester_season"]
+          section?: string | null
+          crn?: string | null
+          instructor_name?: string | null
+          meeting_days?: string[] | null
+          start_time?: string | null
+          end_time?: string | null
+          location?: string | null
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_offerings_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           college: string | null
@@ -161,6 +214,7 @@ export type Database = {
           created_at: string | null
           grade: string | null
           id: string
+          offering_id: string | null
           semester_season: Database["public"]["Enums"]["semester_season"] | null
           semester_year: number | null
           user_id: string
@@ -171,6 +225,7 @@ export type Database = {
           created_at?: string | null
           grade?: string | null
           id?: string
+          offering_id?: string | null
           semester_season?:
             | Database["public"]["Enums"]["semester_season"]
             | null
@@ -183,6 +238,7 @@ export type Database = {
           created_at?: string | null
           grade?: string | null
           id?: string
+          offering_id?: string | null
           semester_season?:
             | Database["public"]["Enums"]["semester_season"]
             | null
@@ -195,6 +251,13 @@ export type Database = {
             columns: ["course_id"]
             isOneToOne: false
             referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_courses_offering_id_fkey"
+            columns: ["offering_id"]
+            isOneToOne: false
+            referencedRelation: "course_offerings"
             referencedColumns: ["id"]
           },
         ]

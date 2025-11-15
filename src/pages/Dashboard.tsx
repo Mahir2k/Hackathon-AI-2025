@@ -7,6 +7,16 @@ import { Progress } from "@/components/ui/progress";
 import { BookOpen, Calendar, TrendingUp, GraduationCap } from "lucide-react";
 import Navigation from "@/components/Navigation";
 import ChatBot from "@/components/ChatBot";
+import { useToast } from "@/hooks/use-toast";
+
+interface CurrentCourse {
+  userCourseId: string;
+  code: string;
+  name: string;
+  credits: number | null;
+  semesterYear: number | null;
+  semesterSeason: string | null;
+}
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -17,6 +27,8 @@ const Dashboard = () => {
   const [hssProgress, setHssProgress] = useState(0);
   const [techProgress, setTechProgress] = useState(0);
   const [freeProgress, setFreeProgress] = useState(0);
+  const [currentCourses, setCurrentCourses] = useState<CurrentCourse[]>([]);
+  const { toast } = useToast();
 
   useEffect(() => {
     checkAuth();
@@ -58,6 +70,43 @@ const Dashboard = () => {
 
     const { data: allCourses } = await supabase.from("courses").select("id");
     setAvailableCourses((allCourses?.length || 0) - completedCourses);
+
+    const { data: current } = await supabase
+      .from("user_courses")
+      .select("id, semester_year, semester_season, courses(code, name, credits)")
+      .eq("user_id", user.id)
+      .eq("completed", false);
+
+    const mapped: CurrentCourse[] =
+      current?.map((row: any) => ({
+        userCourseId: row.id,
+        code: row.courses?.code,
+        name: row.courses?.name,
+        credits: row.courses?.credits ?? null,
+        semesterYear: row.semester_year,
+        semesterSeason: row.semester_season,
+      })) || [];
+
+    setCurrentCourses(mapped);
+  };
+
+  const handleDropCourse = async (userCourseId: string) => {
+    try {
+      await supabase.from("user_courses").delete().eq("id", userCourseId);
+      setCurrentCourses((prev) =>
+        prev.filter((course) => course.userCourseId !== userCourseId)
+      );
+      toast({
+        title: "Course dropped",
+        description: "This course has been removed from your current schedule.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to drop course",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -185,6 +234,41 @@ const Dashboard = () => {
             </div>
           </CardContent>
         </Card>
+
+        {currentCourses.length > 0 && (
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Current Courses</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {currentCourses.map((course) => (
+                <div
+                  key={course.userCourseId}
+                  className="flex items-center justify-between text-sm"
+                >
+                  <div>
+                    <div className="font-medium">
+                      {course.code} · {course.name}
+                    </div>
+                    {course.semesterSeason && (
+                      <div className="text-xs text-muted-foreground">
+                        {course.semesterSeason} {course.semesterYear}
+                        {course.credits ? ` · ${course.credits} credits` : ""}
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDropCourse(course.userCourseId)}
+                  >
+                    Drop
+                  </Button>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
       </main>
     </div>
   );

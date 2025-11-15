@@ -27,8 +27,23 @@ export default function ChatBot({ context }: ChatBotProps) {
     }
   }, [messages]);
 
+  useEffect(() => {
+    if (isOpen && messages.length === 0) {
+      setMessages([
+        {
+          role: "assistant",
+          content:
+            "Hi, I'm Mary. In a sentence or two, tell me your interests and preferences for electives, HSS courses, focus areas, and your major (or if you're undecided).",
+        },
+      ]);
+    }
+  }, [isOpen, messages.length]);
+
   const streamChat = async (userMessage: string) => {
     const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
+    const maryContext =
+      "You are Mary, a concise academic planning assistant. Keep replies under 3 short sentences. Ask focused follow-up questions about electives, HSS options, focus areas, majors or being undecided, and scheduling preferences. Avoid long explanations." +
+      (context ? ` Page context: ${context}` : "");
     
     const resp = await fetch(CHAT_URL, {
       method: "POST",
@@ -38,7 +53,7 @@ export default function ChatBot({ context }: ChatBotProps) {
       },
       body: JSON.stringify({ 
         messages: [...messages, { role: "user", content: userMessage }],
-        context 
+        context: maryContext
       }),
     });
 
@@ -129,7 +144,7 @@ export default function ChatBot({ context }: ChatBotProps) {
       {isOpen && (
         <Card className="fixed bottom-6 right-6 w-96 h-[500px] shadow-2xl z-50 flex flex-col">
           <div className="flex items-center justify-between p-4 border-b">
-            <h3 className="font-semibold">Academic Assistant</h3>
+            <h3 className="font-semibold">Mary · Academic Assistant</h3>
             <Button variant="ghost" size="icon" onClick={() => setIsOpen(false)}>
               <X className="h-4 w-4" />
             </Button>
@@ -138,7 +153,7 @@ export default function ChatBot({ context }: ChatBotProps) {
           <ScrollArea className="flex-1 p-4" ref={scrollRef}>
             {messages.length === 0 && (
               <div className="text-center text-muted-foreground text-sm mt-8">
-                Hi! I'm your academic assistant. Ask me about courses, degree requirements, or planning your schedule.
+                Mary can help with courses, degree requirements, and planning short, focused schedules.
               </div>
             )}
             {messages.map((msg, idx) => (

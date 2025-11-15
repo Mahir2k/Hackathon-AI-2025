@@ -116,7 +116,7 @@ const Progression = () => {
                           disabled={!canTake && !isCompleted}
                           className={`min-w-[200px] p-4 rounded-lg border-2 transition-all duration-300 ${
                             isCompleted ? "bg-green-500/10 border-green-500 hover:bg-green-500/20" :
-                            canTake ? "bg-primary/10 border-primary hover:bg-primary/20 animate-pulse" :
+                            canTake ? "bg-primary/10 border-primary hover:bg-primary/20" :
                             "bg-muted border-border opacity-50 cursor-not-allowed"
                           }`}
                         >
@@ -125,7 +125,7 @@ const Progression = () => {
                             {isCompleted ? (
                               <CheckCircle className="w-5 h-5 text-green-500" />
                             ) : canTake ? (
-                              <Sparkles className="w-5 h-5 text-primary animate-pulse" />
+                              <Sparkles className="w-5 h-5 text-primary" />
                             ) : (
                               <Lock className="w-5 h-5 text-muted-foreground" />
                             )}

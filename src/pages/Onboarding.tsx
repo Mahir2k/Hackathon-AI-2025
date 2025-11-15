@@ -4,6 +4,8 @@ import { Card } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
 import { Building2, Target, Settings, ChevronRight, ChevronLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 
 const colleges = [
   { id: "cas", name: "College of Arts & Sciences", abbr: "CAS" },
@@ -26,12 +28,36 @@ const preferences = [
   { id: "lightfridays", name: "Lighter Fridays", icon: "🎉" },
 ];
 
+const majors = [
+  "Undecided",
+  "Computer Science",
+  "Mechanical Engineering",
+  "Electrical Engineering",
+  "Civil Engineering",
+  "Chemical Engineering",
+  "Business",
+  "Economics",
+  "Psychology",
+  "Biology",
+];
+
+const interestAreas = [
+  "Artificial Intelligence",
+  "Data Science & Analytics",
+  "Humanities & Social Sciences",
+  "Business & Entrepreneurship",
+  "Engineering & Design",
+  "Health & Life Sciences",
+];
+
 const Onboarding = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [selectedCollege, setSelectedCollege] = useState<string>("");
   const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
   const [selectedPreferences, setSelectedPreferences] = useState<string[]>([]);
+  const [selectedMajor, setSelectedMajor] = useState<string>("Undecided");
+  const [selectedInterest, setSelectedInterest] = useState<string>("");
   const [isReturningUser, setIsReturningUser] = useState(false);
 
   useEffect(() => {
@@ -44,7 +70,7 @@ const Onboarding = () => {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("college")
+      .select("college, major")
       .eq("id", user.id)
       .single();
 
@@ -53,6 +79,10 @@ const Onboarding = () => {
       setIsReturningUser(true);
       setSelectedCollege(profile.college);
       setStep(2); // Skip to preferences
+    }
+
+    if (profile?.major) {
+      setSelectedMajor(profile.major);
     }
   };
 
@@ -76,18 +106,24 @@ const Onboarding = () => {
     if (selectedCollege) {
       await supabase
         .from("profiles")
-        .update({ college: selectedCollege })
+        .update({ college: selectedCollege, major: selectedMajor })
         .eq("id", user.id);
     }
 
     // Upsert preferences (always update)
-    await supabase.from("user_preferences").upsert({
-      user_id: user.id,
-      goals: selectedGoals,
-      preferences: selectedPreferences,
-    }, {
-      onConflict: "user_id"
-    });
+    await supabase.from("user_preferences").upsert(
+      {
+        user_id: user.id,
+        goals: selectedGoals,
+        preferences: [
+          ...selectedPreferences,
+          ...(selectedInterest ? [`interest:${selectedInterest}`] : []),
+        ],
+      },
+      {
+        onConflict: "user_id",
+      }
+    );
 
     navigate("/dashboard");
   };
@@ -147,6 +183,25 @@ const Onboarding = () => {
                 </Card>
               ))}
             </div>
+
+            <div className="mt-8 max-w-md">
+              <Label className="mb-2 block">Major</Label>
+              <Select
+                value={selectedMajor}
+                onValueChange={setSelectedMajor}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select your major or choose Undecided" />
+                </SelectTrigger>
+                <SelectContent>
+                  {majors.map((major) => (
+                    <SelectItem key={major} value={major}>
+                      {major}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         )}
 
@@ -177,6 +232,27 @@ const Onboarding = () => {
                 </Card>
               ))}
             </div>
+
+            {selectedGoals.includes("explore") && (
+              <div className="mt-8 max-w-md">
+                <Label className="mb-2 block">Areas you’re interested in exploring</Label>
+                <Select
+                  value={selectedInterest}
+                  onValueChange={setSelectedInterest}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select an interest area (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {interestAreas.map((area) => (
+                      <SelectItem key={area} value={area}>
+                        {area}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         )}
 

@@ -57,7 +57,9 @@ const PlanAhead = () => {
   const navigate = useNavigate();
   const [generating, setGenerating] = useState(false);
   const [semesters, setSemesters] = useState<SemesterPlan[]>([]);
+  const [selectedSemesterKey, setSelectedSemesterKey] = useState<string>("");
   const [availableCourses, setAvailableCourses] = useState<Course[]>([]);
+  const [userMajor, setUserMajor] = useState<string | null>(null);
   const [doubleMinor, setDoubleMinor] = useState(false);
   const [minorField, setMinorField] = useState("");
   const [doubleMajor, setDoubleMajor] = useState(false);
@@ -69,6 +71,7 @@ const PlanAhead = () => {
     checkAuth();
     fetchCourses();
     loadExistingPlan();
+    loadProfile();
   }, []);
 
   const checkAuth = async () => {
@@ -79,6 +82,19 @@ const PlanAhead = () => {
   const fetchCourses = async () => {
     const { data } = await supabase.from("courses").select("*").order("code");
     setAvailableCourses(data || []);
+  };
+
+  const loadProfile = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("major")
+      .eq("id", user.id)
+      .single();
+
+    setUserMajor(profile?.major ?? null);
   };
 
   const loadExistingPlan = async () => {
@@ -111,6 +127,15 @@ const PlanAhead = () => {
   };
 
   const generateFourYearPlan = async () => {
+    if (userMajor === "Undecided") {
+      toast({
+        title: "Focus on first-year courses",
+        description:
+          "Because you selected Undecided, start by planning a strong first-year foundation. Once you choose a major, you can generate a full 4-year plan.",
+      });
+      return;
+    }
+
     setGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke("generate-four-year-plan", {
@@ -214,29 +239,52 @@ const PlanAhead = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    if (!selectedSemesterKey) {
+      toast({
+        title: "Select a semester",
+        description: "Choose which semester to submit for advisor review.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       await savePlan();
-      
-      for (const semester of semesters) {
-        const { data: planData } = await supabase
-          .from("semester_plans")
-          .select("id")
-          .eq("user_id", user.id)
-          .eq("year", semester.year)
-          .eq("season", semester.season)
-          .single();
 
-        if (planData) {
-          await supabase.from("advisor_approvals").insert({
-            user_id: user.id,
-            semester_plan_id: planData.id,
-            advisor_comments: advisorNotes,
-            status: "pending"
-          });
-        }
+      const selectedSemester = semesters.find(
+        (semester) => `${semester.year}-${semester.season}` === selectedSemesterKey
+      );
+
+      if (!selectedSemester) {
+        toast({
+          title: "Semester not found",
+          description: "Please re-select the semester and try again.",
+          variant: "destructive",
+        });
+        return;
       }
 
-      toast({ title: "Submitted!", description: "Your 4-year plan has been sent to your advisor for review." });
+      const { data: planData } = await supabase
+        .from("semester_plans")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("year", selectedSemester.year)
+        .eq("season", selectedSemester.season)
+        .single();
+
+      if (planData) {
+        await supabase.from("advisor_approvals").insert({
+          user_id: user.id,
+          semester_plan_id: planData.id,
+          advisor_comments: advisorNotes,
+          status: "pending",
+        });
+      }
+
+      toast({
+        title: "Submitted!",
+        description: "Your semester plan has been sent to your advisor for review.",
+      });
       navigate("/advisor");
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -350,6 +398,29 @@ const PlanAhead = () => {
         <Card className="p-6">
           <h2 className="text-2xl font-semibold mb-4">Submit to Advisor</h2>
           <div className="space-y-4">
+            {semesters.length > 0 && (
+              <div className="space-y-2">
+                <Label>Semester to submit</Label>
+                <Select
+                  value={selectedSemesterKey}
+                  onValueChange={setSelectedSemesterKey}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose semester" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {semesters.map((semester) => {
+                      const key = `${semester.year}-${semester.season}`;
+                      return (
+                        <SelectItem key={key} value={key}>
+                          {semester.season} {semester.year}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div>
               <Label htmlFor="notes">Notes for Advisor</Label>
               <Textarea

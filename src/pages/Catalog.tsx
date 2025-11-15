@@ -5,8 +5,9 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, BookOpen } from "lucide-react";
+import { Search, BookOpen, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { getCollegeForDepartment } from "@/lib/utils";
 
 interface Course {
   id: string;
@@ -27,10 +28,30 @@ const Catalog = () => {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [selectedDepartment, setSelectedDepartment] = useState<string>("All");
+  const [userCollege, setUserCollege] = useState<string | null>(null);
+  const [userMajor, setUserMajor] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     fetchCourses();
+  }, []);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("college, major")
+        .eq("id", user.id)
+        .single();
+
+      setUserCollege(profile?.college ?? null);
+      setUserMajor(profile?.major ?? null);
+    };
+
+    fetchProfile();
   }, []);
 
   useEffect(() => {
@@ -51,6 +72,17 @@ const Catalog = () => {
 
     if (selectedDepartment !== "All") {
       filtered = filtered.filter((c) => c.department === selectedDepartment);
+    }
+
+    if (userCollege) {
+      filtered = filtered.filter((c) => {
+        const courseCollege = getCollegeForDepartment(c.department);
+        return !courseCollege || courseCollege === userCollege;
+      });
+    }
+
+    if (userMajor && userMajor !== "Undecided") {
+      filtered = filtered.filter((c) => c.department === userMajor);
     }
 
     setFilteredCourses(filtered);
@@ -97,9 +129,21 @@ const Catalog = () => {
       <Navigation />
       
       <div className="max-w-7xl mx-auto p-6">
-        <div className="flex items-center gap-3 mb-6">
-          <BookOpen className="w-8 h-8 text-primary" />
-          <h1 className="text-3xl font-bold">Course Catalog</h1>
+        <div className="flex items-center justify-between gap-3 mb-6">
+          <div className="flex items-center gap-3">
+            <BookOpen className="w-8 h-8 text-primary" />
+            <h1 className="text-3xl font-bold">Course Catalog</h1>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              window.open("https://catalog.lehigh.edu/courselisting/", "_blank")
+            }
+          >
+            Official Catalog
+            <ExternalLink className="w-4 h-4 ml-2" />
+          </Button>
         </div>
 
         {/* Filters */}
@@ -175,13 +219,42 @@ const Catalog = () => {
                 {course.description}
               </p>
 
-              <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center justify-between text-sm mb-2">
                 <span className="text-muted-foreground">
                   {course.credits} credits
                 </span>
-                <span className="text-muted-foreground">
-                  Difficulty: {course.difficulty}/10
-                </span>
+                {course.difficulty && (
+                  <span className="text-muted-foreground">
+                    Difficulty: {course.difficulty}/10
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                <button
+                  type="button"
+                  className="underline-offset-2 hover:underline"
+                  onClick={() =>
+                    window.open(
+                      "https://catalog.lehigh.edu/courselisting/",
+                      "_blank"
+                    )
+                  }
+                >
+                  View in catalog
+                </button>
+                <button
+                  type="button"
+                  className="underline-offset-2 hover:underline"
+                  onClick={() =>
+                    window.open(
+                      `https://www.ratemyprofessors.com/search/professors?q=Lehigh%20University`,
+                      "_blank"
+                    )
+                  }
+                >
+                  Rate My Professors
+                </button>
               </div>
 
               {course.prerequisites.length > 0 && (
