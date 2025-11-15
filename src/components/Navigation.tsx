@@ -37,6 +37,7 @@ const Navigation = () => {
     { path: "/catalog", label: "Course Catalog", icon: BookOpen },
     { path: "/requirements", label: "Requirements", icon: CheckSquare },
     { path: "/advisor", label: "Advisor Approval", icon: FileCheck },
+    { path: "/registration", label: "Registration", icon: CheckSquare },
   ];
 
   return (

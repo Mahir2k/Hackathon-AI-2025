@@ -1,19 +1,22 @@
-import { useState, useEffect } from "react";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { BookOpen, Target, Award, TrendingUp, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { BookOpen, Calendar, TrendingUp, GraduationCap } from "lucide-react";
 import Navigation from "@/components/Navigation";
+import ChatBot from "@/components/ChatBot";
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
   const [completedCourses, setCompletedCourses] = useState(0);
-  const [generating, setGenerating] = useState(false);
-  const [progress, setProgress] = useState({ major: 0, hss: 0, free: 0, tech: 0 });
+  const [availableCourses, setAvailableCourses] = useState(0);
+  const [progressPercentage, setProgressPercentage] = useState(0);
+  const [majorProgress, setMajorProgress] = useState(0);
+  const [hssProgress, setHssProgress] = useState(0);
+  const [techProgress, setTechProgress] = useState(0);
+  const [freeProgress, setFreeProgress] = useState(0);
 
   useEffect(() => {
     checkAuth();
@@ -42,100 +45,147 @@ const Dashboard = () => {
       if (c.courses?.category) counts[c.courses.category]++;
     });
 
-    setProgress({
-      major: Math.round((counts.Major / 12) * 100),
-      hss: Math.round((counts.HSS / 7) * 100),
-      tech: Math.round((counts.Tech / 4) * 100),
-      free: Math.round((counts.Free / 3) * 100),
-    });
-  };
+    const major = Math.round((counts.Major / 12) * 100);
+    const hss = Math.round((counts.HSS / 7) * 100);
+    const tech = Math.round((counts.Tech / 4) * 100);
+    const free = Math.round((counts.Free / 3) * 100);
 
-  const generateSemester = async () => {
-    setGenerating(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("generate-semester", {
-        body: { year: new Date().getFullYear(), season: "Fall" },
-      });
-      if (error) throw error;
-      toast({ title: "Success!", description: `Generated plan with ${data.courses.length} courses` });
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } finally {
-      setGenerating(false);
-    }
+    setMajorProgress(major);
+    setHssProgress(hss);
+    setTechProgress(tech);
+    setFreeProgress(free);
+    setProgressPercentage(Math.round((major + hss + tech + free) / 4));
+
+    const { data: allCourses } = await supabase.from("courses").select("id");
+    setAvailableCourses((allCourses?.length || 0) - completedCourses);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5">
+    <div className="min-h-screen bg-background">
       <Navigation />
-      <div className="max-w-7xl mx-auto p-6">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">Dashboard</h1>
-          <p className="text-muted-foreground">Track your academic progress</p>
+      <ChatBot context="User is viewing their dashboard with course statistics and progress" />
+      
+      <main className="container mx-auto px-4 py-8 max-w-6xl">
+        <div className="mb-8 text-center">
+          <h1 className="text-4xl font-bold mb-2 flex items-center justify-center gap-2">
+            <GraduationCap className="h-8 w-8" />
+            Academic Dashboard
+          </h1>
+          <p className="text-muted-foreground">Track your progress and plan your path to graduation</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card className="p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <BookOpen className="w-5 h-5 text-primary" />
-              <h3 className="font-semibold">Completed</h3>
-            </div>
-            <div className="text-3xl font-bold">{completedCourses}</div>
+        <div className="grid gap-4 md:grid-cols-3 mb-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <BookOpen className="h-4 w-4 text-primary" />
+                Completed Courses
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">{completedCourses}</div>
+            </CardContent>
           </Card>
-          <Card className="p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <Target className="w-5 h-5 text-accent" />
-              <h3 className="font-semibold">Available</h3>
-            </div>
-            <div className="text-3xl font-bold">12</div>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-primary" />
+                Available Courses
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">{availableCourses}</div>
+            </CardContent>
           </Card>
-          <Card className="p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <Award className="w-5 h-5 text-success" />
-              <h3 className="font-semibold">Progress</h3>
-            </div>
-            <div className="text-3xl font-bold">{Math.round((progress.major + progress.hss + progress.tech + progress.free) / 4)}%</div>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-primary" />
+                Overall Progress
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">{progressPercentage}%</div>
+            </CardContent>
           </Card>
         </div>
 
-        <Card className="p-6 mb-8">
-          <h2 className="text-2xl font-semibold mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Button onClick={() => navigate("/progression")} variant="outline" className="h-auto py-4 flex-col gap-2">
-              <TrendingUp className="w-6 h-6" />
-              <span>Progression Tree</span>
-            </Button>
-            <Button onClick={() => navigate("/catalog")} variant="outline" className="h-auto py-4 flex-col gap-2">
-              <BookOpen className="w-6 h-6" />
-              <span>Course Catalog</span>
-            </Button>
-            <Button onClick={generateSemester} disabled={generating} variant="default" className="h-auto py-4 flex-col gap-2">
-              <Sparkles className="w-6 h-6" />
-              <span>{generating ? "Generating..." : "AI Generate Semester"}</span>
-            </Button>
-          </div>
-        </Card>
+        <div className="grid gap-4 md:grid-cols-3 mb-6">
+          <Button 
+            onClick={() => navigate('/progression')} 
+            variant="outline"
+            className="h-auto py-6"
+          >
+            <div className="text-center w-full">
+              <div className="font-semibold mb-1">Course Progression</div>
+              <div className="text-xs text-muted-foreground">View your course flowchart</div>
+            </div>
+          </Button>
 
-        <Card className="p-6">
-          <h2 className="text-2xl font-semibold mb-6">Degree Progress</h2>
-          <div className="space-y-6">
-            {[
-              { name: "Major Requirements", value: progress.major },
-              { name: "HSS Depth & Breadth", value: progress.hss },
-              { name: "Technical Electives", value: progress.tech },
-              { name: "Free Electives", value: progress.free },
-            ].map((req) => (
-              <div key={req.name}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-medium">{req.name}</span>
-                  <span className="text-sm text-muted-foreground">{req.value}%</span>
-                </div>
-                <Progress value={req.value} className="h-3" />
+          <Button 
+            onClick={() => navigate('/plan-ahead')}
+            variant="outline"
+            className="h-auto py-6"
+          >
+            <div className="text-center w-full">
+              <div className="font-semibold mb-1">Plan Ahead</div>
+              <div className="text-xs text-muted-foreground">Create your 4-year plan</div>
+            </div>
+          </Button>
+
+          <Button 
+            onClick={() => navigate('/catalog')}
+            variant="outline"
+            className="h-auto py-6"
+          >
+            <div className="text-center w-full">
+              <div className="font-semibold mb-1">Course Catalog</div>
+              <div className="text-xs text-muted-foreground">Browse all courses</div>
+            </div>
+          </Button>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Degree Requirements</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div>
+              <div className="flex justify-between mb-2">
+                <span className="text-sm font-medium">Major Requirements</span>
+                <span className="text-sm text-muted-foreground">{majorProgress}%</span>
               </div>
-            ))}
-          </div>
+              <Progress value={majorProgress} className="h-2" />
+            </div>
+
+            <div>
+              <div className="flex justify-between mb-2">
+                <span className="text-sm font-medium">HSS Depth & Breadth</span>
+                <span className="text-sm text-muted-foreground">{hssProgress}%</span>
+              </div>
+              <Progress value={hssProgress} className="h-2" />
+            </div>
+
+            <div>
+              <div className="flex justify-between mb-2">
+                <span className="text-sm font-medium">Technical Electives</span>
+                <span className="text-sm text-muted-foreground">{techProgress}%</span>
+              </div>
+              <Progress value={techProgress} className="h-2" />
+            </div>
+
+            <div>
+              <div className="flex justify-between mb-2">
+                <span className="text-sm font-medium">Free Electives</span>
+                <span className="text-sm text-muted-foreground">{freeProgress}%</span>
+              </div>
+              <Progress value={freeProgress} className="h-2" />
+            </div>
+          </CardContent>
         </Card>
-      </div>
+      </main>
     </div>
   );
 };
