@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
 import { Building2, Target, Settings, ChevronRight, ChevronLeft } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const colleges = [
   { id: "cas", name: "College of Arts & Sciences", abbr: "CAS" },
@@ -31,6 +32,29 @@ const Onboarding = () => {
   const [selectedCollege, setSelectedCollege] = useState<string>("");
   const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
   const [selectedPreferences, setSelectedPreferences] = useState<string[]>([]);
+  const [isReturningUser, setIsReturningUser] = useState(false);
+
+  useEffect(() => {
+    checkUserProfile();
+  }, []);
+
+  const checkUserProfile = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("college")
+      .eq("id", user.id)
+      .single();
+
+    // If user has a college set, they're returning
+    if (profile?.college) {
+      setIsReturningUser(true);
+      setSelectedCollege(profile.college);
+      setStep(2); // Skip to preferences
+    }
+  };
 
   const handleGoalToggle = (id: string) => {
     setSelectedGoals(prev =>
@@ -44,28 +68,45 @@ const Onboarding = () => {
     );
   };
 
-  const handleFinish = () => {
-    // Store selections in localStorage or context
-    localStorage.setItem("onboardingComplete", "true");
-    localStorage.setItem("college", selectedCollege);
-    localStorage.setItem("goals", JSON.stringify(selectedGoals));
-    localStorage.setItem("preferences", JSON.stringify(selectedPreferences));
+  const handleFinish = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Update profile with college (only for new users)
+    if (selectedCollege) {
+      await supabase
+        .from("profiles")
+        .update({ college: selectedCollege })
+        .eq("id", user.id);
+    }
+
+    // Upsert preferences (always update)
+    await supabase.from("user_preferences").upsert({
+      user_id: user.id,
+      goals: selectedGoals,
+      preferences: selectedPreferences,
+    }, {
+      onConflict: "user_id"
+    });
+
     navigate("/dashboard");
   };
 
   const canProceed = () => {
-    if (step === 1) return selectedCollege !== "";
+    if (!isReturningUser && step === 1) return selectedCollege !== "";
     if (step === 2) return selectedGoals.length > 0;
     if (step === 3) return selectedPreferences.length > 0;
     return false;
   };
+
+  const maxSteps = isReturningUser ? 2 : 3;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 flex items-center justify-center p-4">
       <Card className="w-full max-w-3xl p-8 shadow-lg">
         {/* Progress Indicator */}
         <div className="flex items-center justify-center mb-8 gap-2">
-          {[1, 2, 3].map((s) => (
+          {Array.from({ length: maxSteps }, (_, i) => i + 1).map((s) => (
             <div
               key={s}
               className={`h-2 rounded-full transition-all ${
@@ -79,8 +120,8 @@ const Onboarding = () => {
           ))}
         </div>
 
-        {/* Step 1: College Selection */}
-        {step === 1 && (
+        {/* Step 1: College Selection (Skip for returning users) */}
+        {!isReturningUser && step === 1 && (
           <div className="animate-fade-in">
             <div className="flex items-center gap-3 mb-6">
               <Building2 className="w-8 h-8 text-primary" />
@@ -110,7 +151,7 @@ const Onboarding = () => {
         )}
 
         {/* Step 2: Goals */}
-        {step === 2 && (
+        {((isReturningUser && step === 1) || (!isReturningUser && step === 2)) && (
           <div className="animate-fade-in">
             <div className="flex items-center gap-3 mb-6">
               <Target className="w-8 h-8 text-primary" />
@@ -140,7 +181,7 @@ const Onboarding = () => {
         )}
 
         {/* Step 3: Preferences */}
-        {step === 3 && (
+        {(isReturningUser && step === 2) || (!isReturningUser && step === 3) && (
           <div className="animate-fade-in">
             <div className="flex items-center gap-3 mb-6">
               <Settings className="w-8 h-8 text-primary" />
@@ -181,7 +222,7 @@ const Onboarding = () => {
             Back
           </Button>
 
-          {step < 3 ? (
+          {step < maxSteps ? (
             <Button
               onClick={() => setStep(step + 1)}
               disabled={!canProceed()}

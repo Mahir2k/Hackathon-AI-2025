@@ -30,7 +30,7 @@ const Landing = () => {
             <Button 
               size="lg" 
               className="text-lg px-8 py-6 shadow-lg hover:shadow-glow transition-all"
-              onClick={() => navigate("/onboarding")}
+              onClick={() => navigate("/auth")}
             >
               <GraduationCap className="mr-2 h-5 w-5" />
               Start Your Journey
