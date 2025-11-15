@@ -14,7 +14,218 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      advisor_approvals: {
+        Row: {
+          advisor_comments: string | null
+          id: string
+          reviewed_at: string | null
+          reviewer_id: string | null
+          semester_plan_id: string
+          status: Database["public"]["Enums"]["approval_status"] | null
+          submitted_at: string | null
+          user_id: string
+        }
+        Insert: {
+          advisor_comments?: string | null
+          id?: string
+          reviewed_at?: string | null
+          reviewer_id?: string | null
+          semester_plan_id: string
+          status?: Database["public"]["Enums"]["approval_status"] | null
+          submitted_at?: string | null
+          user_id: string
+        }
+        Update: {
+          advisor_comments?: string | null
+          id?: string
+          reviewed_at?: string | null
+          reviewer_id?: string | null
+          semester_plan_id?: string
+          status?: Database["public"]["Enums"]["approval_status"] | null
+          submitted_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "advisor_approvals_semester_plan_id_fkey"
+            columns: ["semester_plan_id"]
+            isOneToOne: false
+            referencedRelation: "semester_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      courses: {
+        Row: {
+          category: Database["public"]["Enums"]["course_category"]
+          code: string
+          created_at: string | null
+          credits: number
+          department: string
+          description: string | null
+          difficulty: number | null
+          id: string
+          name: string
+          prerequisites: string[] | null
+          workload_hours: number | null
+        }
+        Insert: {
+          category: Database["public"]["Enums"]["course_category"]
+          code: string
+          created_at?: string | null
+          credits?: number
+          department: string
+          description?: string | null
+          difficulty?: number | null
+          id?: string
+          name: string
+          prerequisites?: string[] | null
+          workload_hours?: number | null
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["course_category"]
+          code?: string
+          created_at?: string | null
+          credits?: number
+          department?: string
+          description?: string | null
+          difficulty?: number | null
+          id?: string
+          name?: string
+          prerequisites?: string[] | null
+          workload_hours?: number | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          college: string | null
+          created_at: string | null
+          email: string | null
+          id: string
+          major: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          college?: string | null
+          created_at?: string | null
+          email?: string | null
+          id: string
+          major?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          college?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          major?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      semester_plans: {
+        Row: {
+          ai_generated: boolean | null
+          courses: string[] | null
+          created_at: string | null
+          id: string
+          season: Database["public"]["Enums"]["semester_season"]
+          user_id: string
+          year: number
+        }
+        Insert: {
+          ai_generated?: boolean | null
+          courses?: string[] | null
+          created_at?: string | null
+          id?: string
+          season: Database["public"]["Enums"]["semester_season"]
+          user_id: string
+          year: number
+        }
+        Update: {
+          ai_generated?: boolean | null
+          courses?: string[] | null
+          created_at?: string | null
+          id?: string
+          season?: Database["public"]["Enums"]["semester_season"]
+          user_id?: string
+          year?: number
+        }
+        Relationships: []
+      }
+      user_courses: {
+        Row: {
+          completed: boolean | null
+          course_id: string
+          created_at: string | null
+          grade: string | null
+          id: string
+          semester_season: Database["public"]["Enums"]["semester_season"] | null
+          semester_year: number | null
+          user_id: string
+        }
+        Insert: {
+          completed?: boolean | null
+          course_id: string
+          created_at?: string | null
+          grade?: string | null
+          id?: string
+          semester_season?:
+            | Database["public"]["Enums"]["semester_season"]
+            | null
+          semester_year?: number | null
+          user_id: string
+        }
+        Update: {
+          completed?: boolean | null
+          course_id?: string
+          created_at?: string | null
+          grade?: string | null
+          id?: string
+          semester_season?:
+            | Database["public"]["Enums"]["semester_season"]
+            | null
+          semester_year?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_courses_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_preferences: {
+        Row: {
+          created_at: string | null
+          goals: string[] | null
+          id: string
+          preferences: string[] | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          goals?: string[] | null
+          id?: string
+          preferences?: string[] | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          goals?: string[] | null
+          id?: string
+          preferences?: string[] | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +234,10 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      approval_status: "pending" | "approved" | "rejected"
+      course_category: "Major" | "HSS" | "Tech" | "Free"
+      semester_season: "Fall" | "Spring" | "Summer"
+      user_role_type: "student" | "advisor"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +364,11 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      approval_status: ["pending", "approved", "rejected"],
+      course_category: ["Major", "HSS", "Tech", "Free"],
+      semester_season: ["Fall", "Spring", "Summer"],
+      user_role_type: ["student", "advisor"],
+    },
   },
 } as const
