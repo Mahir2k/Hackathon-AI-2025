@@ -7,6 +7,7 @@ import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
+import PlanAhead from "./pages/PlanAhead";
 import Progression from "./pages/Progression";
 import Catalog from "./pages/Catalog";
 import Advisor from "./pages/Advisor";
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/plan-ahead" element={<PlanAhead />} />
           <Route path="/progression" element={<Progression />} />
           <Route path="/catalog" element={<Catalog />} />
           <Route path="/advisor" element={<Advisor />} />
