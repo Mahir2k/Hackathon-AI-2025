@@ -19,14 +19,15 @@ const goals = [
   { id: "asap", name: "Graduate ASAP", icon: "🚀" },
   { id: "balanced", name: "Balanced Workload", icon: "⚖️" },
   { id: "explore", name: "Explore Interests", icon: "🔍" },
-  { id: "gpa", name: "Keep GPA High", icon: "📈" },
+  { id: "gradschool", name: "Prepare for Grad School", icon: "🎓" },
 ];
 
 const preferences = [
-  { id: "no8am", name: "No 8AM Classes", icon: "😴" },
-  { id: "max4", name: "Max 4 Classes/Day", icon: "📚" },
   { id: "highrated", name: "Highly Rated Professors", icon: "⭐" },
-  { id: "lightfridays", name: "Lighter Fridays", icon: "🎉" },
+  { id: "project", name: "Project-based Courses", icon: "🛠️" },
+  { id: "exam", name: "Exam-based Courses", icon: "📝" },
+  { id: "diversehss", name: "Diverse HSS/Free Electives", icon: "🌍" },
+  { id: "easy", name: "Easy Graded Courses", icon: "😌" },
 ];
 
 const majors = [
