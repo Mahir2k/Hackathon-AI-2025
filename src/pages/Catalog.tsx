@@ -5,9 +5,16 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, BookOpen, ExternalLink } from "lucide-react";
+import { Search, BookOpen, ExternalLink, Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getCollegeForDepartment } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 interface Course {
   id: string;
@@ -22,6 +29,28 @@ interface Course {
   workload_hours: number;
 }
 
+interface CourseOffering {
+  id: string;
+  year: number;
+  season: string;
+  section: string | null;
+  crn: string | null;
+  instructor_name: string | null;
+  meeting_days: string[] | null;
+  start_time: string | null;
+  end_time: string | null;
+  location: string | null;
+}
+
+interface ProfessorReview {
+  id: string;
+  professor_name: string;
+  rating: string | null;
+  helpful_count: number | null;
+  comment: string;
+  rmp_url: string | null;
+}
+
 const Catalog = () => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [filteredCourses, setFilteredCourses] = useState<Course[]>([]);
@@ -30,6 +59,11 @@ const Catalog = () => {
   const [selectedDepartment, setSelectedDepartment] = useState<string>("All");
   const [userCollege, setUserCollege] = useState<string | null>(null);
   const [userMajor, setUserMajor] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  const [offerings, setOfferings] = useState<CourseOffering[]>([]);
+  const [reviewsByProfessor, setReviewsByProfessor] = useState<Record<string, ProfessorReview[]>>({});
+  const [loadingDetails, setLoadingDetails] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -53,6 +87,61 @@ const Catalog = () => {
 
     fetchProfile();
   }, []);
+
+  useEffect(() => {
+    const loadDetails = async () => {
+      if (!detailsOpen || !selectedCourse) return;
+      setLoadingDetails(true);
+      try {
+        const { data: offeringData } = await supabase
+          .from("course_offerings")
+          .select(
+            "id, year, season, section, crn, instructor_name, meeting_days, start_time, end_time, location",
+          )
+          .eq("course_id", selectedCourse.id)
+          .order("year")
+          .order("season");
+
+        setOfferings((offeringData as any) || []);
+
+        const { data: reviewData } = await supabase
+          .from("professor_reviews")
+          .select("id, professor_name, rating, helpful_count, comment, rmp_url")
+          .eq("course_code", selectedCourse.code);
+
+        const grouped: Record<string, ProfessorReview[]> = {};
+        (reviewData as any[])?.forEach((r) => {
+          const name = r.professor_name;
+          if (!grouped[name]) grouped[name] = [];
+          grouped[name].push(r);
+        });
+
+        Object.keys(grouped).forEach((name) => {
+          grouped[name].sort((a, b) => {
+            const hA = a.helpful_count ?? 0;
+            const hB = b.helpful_count ?? 0;
+            if (hB !== hA) return hB - hA;
+            const rA = a.rating ? parseFloat(a.rating) : 0;
+            const rB = b.rating ? parseFloat(b.rating) : 0;
+            return rB - rA;
+          });
+          grouped[name] = grouped[name].slice(0, 3);
+        });
+
+        setReviewsByProfessor(grouped);
+      } catch (error: any) {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to load instructor details",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingDetails(false);
+      }
+    };
+
+    loadDetails();
+  }, [detailsOpen, selectedCourse, toast]);
 
   useEffect(() => {
     let filtered = courses;
@@ -246,14 +335,12 @@ const Catalog = () => {
                 <button
                   type="button"
                   className="underline-offset-2 hover:underline"
-                  onClick={() =>
-                    window.open(
-                      `https://www.ratemyprofessors.com/search/professors?q=Lehigh%20University`,
-                      "_blank"
-                    )
-                  }
+                  onClick={() => {
+                    setSelectedCourse(course);
+                    setDetailsOpen(true);
+                  }}
                 >
-                  Rate My Professors
+                  Instructors & ratings
                 </button>
               </div>
 
@@ -272,6 +359,134 @@ const Catalog = () => {
           </div>
         )}
       </div>
+
+      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {selectedCourse ? `${selectedCourse.code} · ${selectedCourse.name}` : "Course details"}
+            </DialogTitle>
+            <DialogDescription>
+              Course offerings by semester and top comments from RateMyProfessors (where available).
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingDetails && (
+            <div className="text-sm text-muted-foreground">Loading instructor details…</div>
+          )}
+
+          {!loadingDetails && selectedCourse && (
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold mb-2">Offerings</h3>
+                {offerings.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No scheduled offerings found in the database yet.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {offerings.map((offering) => (
+                      <div
+                        key={offering.id}
+                        className="border rounded-md p-2 text-xs flex flex-col gap-1"
+                      >
+                        <div className="flex justify-between">
+                          <span className="font-medium">
+                            {offering.season} {offering.year}
+                            {offering.section ? ` · Sec ${offering.section}` : ""}
+                          </span>
+                          {offering.crn && <span className="text-muted-foreground">CRN {offering.crn}</span>}
+                        </div>
+                        <div className="flex justify-between">
+                          <span>{offering.instructor_name ?? "Instructor TBA"}</span>
+                          {offering.meeting_days && offering.start_time && offering.end_time && (
+                            <span className="text-muted-foreground">
+                              {offering.meeting_days.join("")} {offering.start_time}–{offering.end_time}
+                            </span>
+                          )}
+                        </div>
+                        {offering.location && (
+                          <div className="text-muted-foreground">{offering.location}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold mb-2 flex items-center gap-1">
+                  <Star className="w-4 h-4 text-yellow-500" />
+                  Top comments (RateMyProfessors)
+                </h3>
+                {Object.keys(reviewsByProfessor).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No imported RateMyProfessors comments yet.{" "}
+                    <button
+                      type="button"
+                      className="underline underline-offset-2"
+                      onClick={() =>
+                        window.open(
+                          `https://www.ratemyprofessors.com/search/professors?q=Lehigh%20University%20${encodeURIComponent(
+                            selectedCourse.name,
+                          )}`,
+                          "_blank",
+                        )
+                      }
+                    >
+                      Search on RateMyProfessors
+                    </button>
+                    .
+                  </p>
+                ) : (
+                  <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
+                    {Object.entries(reviewsByProfessor).map(([profName, reviews]) => (
+                      <div key={profName} className="border rounded-md p-2 text-xs space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium">{profName}</span>
+                          {reviews[0]?.rating && (
+                            <span className="flex items-center gap-1 text-yellow-600">
+                              <Star className="w-3 h-3" />
+                              {parseFloat(reviews[0].rating).toFixed(1)}
+                            </span>
+                          )}
+                        </div>
+                        {reviews.map((rev) => (
+                          <div key={rev.id} className="mt-1">
+                            <p className="text-muted-foreground">{rev.comment}</p>
+                            {rev.helpful_count != null && (
+                              <p className="text-[10px] text-muted-foreground mt-0.5">
+                                {rev.helpful_count} students found this helpful
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                        <div className="pt-1">
+                          <button
+                            type="button"
+                            className="underline underline-offset-2"
+                            onClick={() =>
+                              window.open(
+                                reviews[0].rmp_url ||
+                                  `https://www.ratemyprofessors.com/search/professors?q=Lehigh%20University%20${encodeURIComponent(
+                                    profName,
+                                  )}`,
+                                "_blank",
+                              )
+                            }
+                          >
+                            View on RateMyProfessors
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

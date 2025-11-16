@@ -150,6 +150,59 @@ export type Database = {
           },
         ]
       }
+      course_offerings: {
+        Row: {
+          id: string
+          course_id: string
+          year: number
+          season: Database["public"]["Enums"]["semester_season"]
+          section: string | null
+          crn: string | null
+          instructor_name: string | null
+          meeting_days: string[] | null
+          start_time: string | null
+          end_time: string | null
+          location: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          course_id: string
+          year: number
+          season: Database["public"]["Enums"]["semester_season"]
+          section?: string | null
+          crn?: string | null
+          instructor_name?: string | null
+          meeting_days?: string[] | null
+          start_time?: string | null
+          end_time?: string | null
+          location?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          course_id?: string
+          year?: number
+          season?: Database["public"]["Enums"]["semester_season"]
+          section?: string | null
+          crn?: string | null
+          instructor_name?: string | null
+          meeting_days?: string[] | null
+          start_time?: string | null
+          end_time?: string | null
+          location?: string | null
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_offerings_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           college: string | null
@@ -206,6 +259,53 @@ export type Database = {
           year?: number
         }
         Relationships: []
+      }
+      professor_reviews: {
+        Row: {
+          id: string
+          professor_name: string
+          course_code: string | null
+          course_id: string | null
+          source: string
+          rating: string | null
+          helpful_count: number | null
+          comment: string
+          rmp_url: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          professor_name: string
+          course_code?: string | null
+          course_id?: string | null
+          source?: string
+          rating?: string | null
+          helpful_count?: number | null
+          comment: string
+          rmp_url?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          professor_name?: string
+          course_code?: string | null
+          course_id?: string | null
+          source?: string
+          rating?: string | null
+          helpful_count?: number | null
+          comment?: string
+          rmp_url?: string | null
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professor_reviews_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_courses: {
         Row: {
