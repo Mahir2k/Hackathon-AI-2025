@@ -5,10 +5,11 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, BookOpen, ExternalLink, Star } from "lucide-react";
+import { Search, BookOpen, ExternalLink, Star, ShoppingCart } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getCollegeForDepartment } from "@/lib/utils";
 import { CSB_CATALOG_COURSES } from "@/data/csbProgram";
+import { useCourseCart } from "@/contexts/CourseCartContext";
 import {
   Dialog,
   DialogContent,
@@ -66,6 +67,11 @@ const Catalog = () => {
   const [reviewsByProfessor, setReviewsByProfessor] = useState<Record<string, ProfessorReview[]>>({});
   const [loadingDetails, setLoadingDetails] = useState(false);
   const { toast } = useToast();
+  const {
+    addCourseToCart,
+    removeCourseFromCart,
+    isInCart,
+  } = useCourseCart();
 
   useEffect(() => {
     fetchCourses();
@@ -185,16 +191,16 @@ const Catalog = () => {
         description: "Failed to fetch courses",
         variant: "destructive",
       });
-    } else {
-      const allCourses = ensureCsbCoverage(data || []);
-      setCourses(allCourses);
-      setFilteredCourses(allCourses);
-
-      const uniqueDepartments = Array.from(
-        new Set(allCourses.map((c) => c.department))
-      ).sort();
-      setDepartmentOptions(["All", ...uniqueDepartments]);
     }
+
+    const allCourses = ensureCsbCoverage(data || []);
+    setCourses(allCourses);
+    setFilteredCourses(allCourses);
+
+    const uniqueDepartments = Array.from(
+      new Set(allCourses.map((c) => c.department))
+    ).sort();
+    setDepartmentOptions(["All", ...uniqueDepartments]);
   };
 
   const ensureCsbCoverage = (list: Course[]) => {
@@ -332,6 +338,28 @@ const Catalog = () => {
                   </span>
                 )}
               </div>
+
+              <Button
+                variant={isInCart(course.id) ? "secondary" : "outline"}
+                className="w-full mb-2 gap-2"
+                onClick={() => {
+                  if (isInCart(course.id)) {
+                    removeCourseFromCart(course.id);
+                  } else {
+                    addCourseToCart({
+                      id: course.id,
+                      code: course.code,
+                      name: course.name,
+                      credits: course.credits,
+                      department: course.department,
+                      category: course.category,
+                    });
+                  }
+                }}
+              >
+                <ShoppingCart className="w-4 h-4" />
+                {isInCart(course.id) ? "In Cart (remove)" : "Add to Cart"}
+              </Button>
 
               <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
                 <button

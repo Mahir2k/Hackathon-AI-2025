@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import type { DragEvent } from "react";
 import { DndContext, closestCenter, DragEndEvent } from "@dnd-kit/core";
 import { arrayMove, SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -17,6 +18,15 @@ import { useNavigate } from "react-router-dom";
 import Navigation from "@/components/Navigation";
 import ChatBot from "@/components/ChatBot";
 import { CSB_CATALOG_COURSES, CSB_MAJOR_NAME, CSB_PLAN_TEMPLATE } from "@/data/csbProgram";
+import { MINOR_OPTIONS, getMinorOption } from "@/data/minors";
+import { useCourseCart, CartCourse } from "@/contexts/CourseCartContext";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 interface Course {
   id: string;
@@ -56,6 +66,11 @@ const SortableCourse = ({ course, onRemove }: { course: Course; onRemove: () => 
 const PlanAhead = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const {
+    cartItems,
+    removeCourseFromCart,
+    clearCart,
+  } = useCourseCart();
   const [generating, setGenerating] = useState(false);
   const [semesters, setSemesters] = useState<SemesterPlan[]>([]);
   const [selectedSemesterKey, setSelectedSemesterKey] = useState<string>("");
@@ -68,6 +83,11 @@ const PlanAhead = () => {
   const [advisorNotes, setAdvisorNotes] = useState("");
   const [overloadInfo, setOverloadInfo] = useState<{ needed: boolean; semesters: number; creditsPerSemester: number } | null>(null);
   const [csbPlanApplied, setCsbPlanApplied] = useState(false);
+  const [cartDialogOpen, setCartDialogOpen] = useState(false);
+  const [targetSemesterIndex, setTargetSemesterIndex] = useState<number | null>(null);
+  const [draggingCartCourse, setDraggingCartCourse] = useState<CartCourse | null>(null);
+  const [removeFromCartOnAdd, setRemoveFromCartOnAdd] = useState(false);
+  const MINOR_STORAGE_KEY = "plan-minor-selection";
 
   useEffect(() => {
     checkAuth();
@@ -75,6 +95,22 @@ const PlanAhead = () => {
     loadExistingPlan();
     loadProfile();
   }, []);
+
+  useEffect(() => {
+    const storedMinor = localStorage.getItem(MINOR_STORAGE_KEY);
+    if (storedMinor) {
+      setDoubleMinor(true);
+      setMinorField(storedMinor);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (doubleMinor && minorField) {
+      localStorage.setItem(MINOR_STORAGE_KEY, minorField);
+    } else {
+      localStorage.removeItem(MINOR_STORAGE_KEY);
+    }
+  }, [doubleMinor, minorField]);
 
   useEffect(() => {
     if (
@@ -111,6 +147,67 @@ const PlanAhead = () => {
       }
     });
     return list;
+  };
+
+  const getCourseFromLookup = (code: string): Course | null => {
+    const existing = availableCourses.find((course) => course.code === code);
+    if (existing) return existing;
+
+    const fallbackCsb = CSB_CATALOG_COURSES.find((course) => course.code === code);
+    if (fallbackCsb) {
+      return {
+        id: fallbackCsb.id,
+        code: fallbackCsb.code,
+        name: fallbackCsb.name,
+        credits: fallbackCsb.credits,
+        category: fallbackCsb.category,
+      } as Course;
+    }
+
+    const minorFallback = MINOR_OPTIONS.flatMap((option) => option.requirements).find((req) => req.code === code);
+    if (minorFallback) {
+      return {
+        id: `minor-${minorFallback.code}`,
+        code: minorFallback.code,
+        name: minorFallback.name,
+        credits: minorFallback.credits,
+        category: minorFallback.category || "Major",
+      };
+    }
+
+    return null;
+  };
+
+  const applyMinorCourses = (plan: SemesterPlan[]) => {
+    if (!doubleMinor || !minorField) return plan;
+    const option = getMinorOption(minorField);
+    if (!option) return plan;
+
+    const updated = plan.map((semester) => ({
+      ...semester,
+      courses: [...semester.courses],
+    }));
+
+    if (updated.length === 0) return updated;
+
+    option.requirements.forEach((req, idx) => {
+      const alreadyPlaced = updated.some((semester) =>
+        semester.courses.some((course) => course.code === req.code)
+      );
+      if (alreadyPlaced) return;
+
+      const course = getCourseFromLookup(req.code);
+      if (!course) return;
+
+      const preferredIndex =
+        req.preferredSemester !== undefined
+          ? Math.min(req.preferredSemester, updated.length - 1)
+          : idx % updated.length;
+
+      updated[preferredIndex].courses = [...updated[preferredIndex].courses, course];
+    });
+
+    return updated;
   };
 
   const loadProfile = async () => {
@@ -155,21 +252,85 @@ const PlanAhead = () => {
     }
   };
 
+  const addCartCourseToSemester = (
+    cartCourse: CartCourse,
+    semesterOverride: number | null = null
+  ) => {
+    const semesterIndex =
+      semesterOverride !== null ? semesterOverride : targetSemesterIndex;
+    if (semesterIndex === null) return;
+    const semesterInfo = semesters[semesterIndex];
+    setSemesters((prev) => {
+      const updated = [...prev];
+      const semester = updated[semesterIndex];
+      if (!semester) return prev;
+
+      const newCourse: Course = {
+        id: cartCourse.id,
+        code: cartCourse.code,
+        name: cartCourse.name,
+        credits: cartCourse.credits,
+        category: cartCourse.category || "Major",
+      };
+
+      semester.courses = [...semester.courses, newCourse];
+      updated[semesterIndex] = { ...semester };
+      return updated;
+    });
+
+    if (removeFromCartOnAdd) {
+      removeCourseFromCart(cartCourse.id);
+    }
+
+    toast({
+      title: "Course added",
+      description: `${cartCourse.code} added to ${semesterInfo?.season || ""} ${semesterInfo?.year || ""}`,
+    });
+    if (semesterOverride === null) {
+      setTargetSemesterIndex(null);
+    }
+  };
+
+  const handleCartDragStart = (
+    event: DragEvent<HTMLDivElement>,
+    course: CartCourse
+  ) => {
+    event.dataTransfer.setData("text/cart-course", JSON.stringify(course));
+    setDraggingCartCourse(course);
+  };
+
+  const handleCartDragEnd = () => {
+    setDraggingCartCourse(null);
+  };
+
+  const handleSemesterDrop = (
+    semesterIndex: number,
+    event: DragEvent<HTMLDivElement>
+  ) => {
+    event.preventDefault();
+    let course = draggingCartCourse;
+    if (!course) {
+      const payload = event.dataTransfer.getData("text/cart-course");
+      if (payload) {
+        try {
+          course = JSON.parse(payload);
+        } catch {
+          course = null;
+        }
+      }
+    }
+    if (course) {
+      addCartCourseToSemester(course, semesterIndex);
+    }
+    setDraggingCartCourse(null);
+  };
+
   const applyCsbPlan = () => {
     const hydrated = CSB_PLAN_TEMPLATE.map((template) => {
       const courses = template.courseCodes
         .map((code) => {
-          const existing = availableCourses.find((course) => course.code === code);
-          if (existing) return existing;
-          const fallback = CSB_CATALOG_COURSES.find((course) => course.code === code);
-          if (!fallback) return null;
-          return {
-            id: fallback.id,
-            code: fallback.code,
-            name: fallback.name,
-            credits: fallback.credits,
-            category: fallback.category,
-          } as Course;
+          const found = getCourseFromLookup(code);
+          return found;
         })
         .filter((course): course is Course => Boolean(course));
 
@@ -180,9 +341,11 @@ const PlanAhead = () => {
       };
     });
 
-    setSemesters(hydrated);
+    const finalPlan = applyMinorCourses(hydrated);
+
+    setSemesters(finalPlan);
     setCsbPlanApplied(true);
-    setOverloadInfo(calculateOverloadInfo(hydrated));
+    setOverloadInfo(calculateOverloadInfo(finalPlan));
     toast({
       title: "CSB 4-year plan generated",
       description: "Eight-semester plan loaded with max 18 credits per term.",
@@ -218,8 +381,10 @@ const PlanAhead = () => {
         courses: sem.courses
       }));
 
-      setSemesters(generatedSemesters);
-      setOverloadInfo(data.overloadInfo);
+      const finalPlan = applyMinorCourses(generatedSemesters);
+
+      setSemesters(finalPlan);
+      setOverloadInfo(calculateOverloadInfo(finalPlan));
 
       toast({ 
         title: "Success!", 
@@ -413,15 +578,33 @@ const PlanAhead = () => {
 
             <div className="space-y-2">
               <div className="flex items-center space-x-2">
-                <Checkbox id="minor" checked={doubleMinor} onCheckedChange={(checked) => setDoubleMinor(checked === true)} />
+                <Checkbox
+                  id="minor"
+                  checked={doubleMinor}
+                  onCheckedChange={(checked) => {
+                    const value = checked === true;
+                    setDoubleMinor(value);
+                    if (!value) setMinorField("");
+                  }}
+                />
                 <Label htmlFor="minor">Add Minor</Label>
               </div>
               {doubleMinor && (
-                <Input
-                  placeholder="Enter minor field (e.g., Data Science)"
+                <Select
                   value={minorField}
-                  onChange={(e) => setMinorField(e.target.value)}
-                />
+                  onValueChange={setMinorField}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select minor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MINOR_OPTIONS.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
             </div>
           </div>
@@ -444,9 +627,71 @@ const PlanAhead = () => {
           )}
         </Card>
 
+        <Card className="p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-semibold">Course Cart</h2>
+            <p className="text-sm text-muted-foreground">
+              Tap “Add from cart” inside a semester to place these courses.
+            </p>
+          </div>
+          {cartItems.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No courses in your cart yet. Browse the catalog and add courses you are considering.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-3">
+              {cartItems.map((course) => (
+                <div
+                  key={course.id}
+                  className="border rounded-lg px-3 py-2 text-sm flex items-center gap-2 cursor-grab"
+                  draggable
+                  onDragStart={(e) => handleCartDragStart(e, course)}
+                  onDragEnd={handleCartDragEnd}
+                >
+                  <div>
+                    <div className="font-semibold">{course.code}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {course.credits} credits · {course.department}
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeCourseFromCart(course.id)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-2 mt-4">
+            <Checkbox
+              id="remove-after-add"
+              checked={removeFromCartOnAdd}
+              onCheckedChange={(checked) =>
+                setRemoveFromCartOnAdd(checked === true)
+              }
+            />
+            <Label htmlFor="remove-after-add" className="text-sm">
+              Remove from cart after adding to a semester
+            </Label>
+          </div>
+          {cartItems.length > 0 && (
+            <Button variant="outline" className="mt-4" onClick={clearCart}>
+              Clear Cart
+            </Button>
+          )}
+        </Card>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           {semesters.map((semester, index) => (
-            <Card key={`${semester.year}-${semester.season}`} className="p-4">
+            <Card
+              key={`${semester.year}-${semester.season}`}
+              className="p-4"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => handleSemesterDrop(index, e)}
+            >
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-xl font-semibold">{semester.season} {semester.year}</h3>
@@ -473,6 +718,19 @@ const PlanAhead = () => {
                   No courses scheduled
                 </div>
               )}
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-4 w-full"
+                onClick={() => {
+                  setTargetSemesterIndex(index);
+                  setCartDialogOpen(true);
+                }}
+                disabled={cartItems.length === 0}
+              >
+                Add from Cart
+              </Button>
             </Card>
           ))}
         </div>
@@ -530,6 +788,61 @@ const PlanAhead = () => {
           </div>
         </Card>
       </div>
+
+      <Dialog
+        open={cartDialogOpen}
+        onOpenChange={(open) => {
+          setCartDialogOpen(open);
+          if (!open) setTargetSemesterIndex(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add courses from cart</DialogTitle>
+            <DialogDescription>
+              Select a course to add to the chosen semester.
+            </DialogDescription>
+          </DialogHeader>
+          {cartItems.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Your cart is empty. Add courses from the catalog first.
+            </p>
+          ) : targetSemesterIndex === null ? (
+            <p className="text-sm text-muted-foreground">
+              Choose a semester before selecting courses.
+            </p>
+          ) : (
+            <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
+              {cartItems.map((course) => (
+                <div
+                  key={course.id}
+                  className="border rounded-lg p-3 flex items-center justify-between"
+                >
+                  <div>
+                    <div className="font-semibold">{course.code}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {course.name}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {course.credits} credits
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      addCartCourseToSemester(course);
+                      setCartDialogOpen(false);
+                      setTargetSemesterIndex(null);
+                    }}
+                  >
+                    Add
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

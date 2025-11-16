@@ -84,6 +84,8 @@ const Progression = () => {
   const { toast } = useToast();
   const [completed, setCompleted] = useState<Set<string>>(new Set());
   const [userMajor, setUserMajor] = useState<string | null>(null);
+  const [mockCompleted, setMockCompleted] = useState<Set<string>>(new Set());
+  const [mockKey, setMockKey] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCompleted();
@@ -93,15 +95,72 @@ const Progression = () => {
   const fetchCompleted = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const { data } = await supabase.from("user_courses").select("courses(code)").eq("user_id", user.id).eq("completed", true);
-    setCompleted(new Set(data?.map((c: any) => c.courses.code) || []));
+    const { data } = await supabase
+      .from("user_courses")
+      .select("courses(code)")
+      .eq("user_id", user.id)
+      .eq("completed", true);
+
+    const supSet = new Set(data?.map((c: any) => c.courses.code) || []);
+
+    if (mockKey) {
+      const stored = localStorage.getItem(mockKey);
+      if (stored) {
+        const mockArray = JSON.parse(stored) as string[];
+        const union = new Set([...supSet, ...mockArray]);
+        setMockCompleted(new Set(mockArray));
+        setCompleted(union);
+        return;
+      }
+    }
+
+    setCompleted(supSet);
   };
 
   const fetchProfile = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const { data: profile } = await supabase.from("profiles").select("major").eq("id", user.id).single();
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("major")
+      .eq("id", user.id)
+      .single();
     setUserMajor(profile?.major ?? null);
+    const key = `progression-mock-${user.id}`;
+    setMockKey(key);
+    const stored = localStorage.getItem(key);
+    if (stored) {
+      const mockArray = JSON.parse(stored) as string[];
+      setMockCompleted(new Set(mockArray));
+      setCompleted((prev) => new Set([...prev, ...mockArray]));
+    }
+  };
+
+  const persistMock = (next: Set<string>, key: string) => {
+    localStorage.setItem(key, JSON.stringify(Array.from(next)));
+  };
+
+  const toggleMockCourse = (code: string) => {
+    if (!mockKey) return;
+    setMockCompleted((prev) => {
+      const next = new Set(prev);
+      if (next.has(code)) {
+        next.delete(code);
+      } else {
+        next.add(code);
+      }
+      persistMock(next, mockKey);
+      setCompleted((current) => {
+        const merged = new Set(current);
+        if (merged.has(code)) {
+          if (!next.has(code)) merged.delete(code);
+        } else {
+          merged.add(code);
+        }
+        return merged;
+      });
+      return next;
+    });
   };
 
   const toggleCourse = async (code: string) => {
@@ -109,16 +168,47 @@ const Progression = () => {
     if (!user) return;
     
     const isCompleted = completed.has(code);
-    const { data: course } = await supabase.from("courses").select("id").eq("code", code).single();
-    if (!course) return;
+    let { data: course } = await supabase
+      .from("courses")
+      .select("id")
+      .eq("code", code)
+      .single();
+    if (!course) {
+      toggleMockCourse(code);
+      return;
+    }
 
     if (isCompleted) {
-      await supabase.from("user_courses").delete().eq("user_id", user.id).eq("course_id", course.id);
-      setCompleted(prev => { const next = new Set(prev); next.delete(code); return next; });
+      await supabase
+        .from("user_courses")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("course_id", course.id)
+        .then(({ error }) => {
+          if (error) {
+            toggleMockCourse(code);
+            return;
+          }
+          setCompleted((prev) => {
+            const next = new Set(prev);
+            next.delete(code);
+            return next;
+          });
+        });
     } else {
-      await supabase.from("user_courses").insert({ user_id: user.id, course_id: course.id, completed: true });
-      setCompleted(prev => new Set(prev).add(code));
-      toast({ title: "Course unlocked", description: `${code} marked complete. New courses may now be available.` });
+      const { error } = await supabase
+        .from("user_courses")
+        .insert({ user_id: user.id, course_id: course.id, completed: true });
+
+      if (error) {
+        toggleMockCourse(code);
+      } else {
+        setCompleted((prev) => new Set(prev).add(code));
+        toast({
+          title: "Course unlocked",
+          description: `${code} marked complete. New courses may now be available.`,
+        });
+      }
     }
   };
 
