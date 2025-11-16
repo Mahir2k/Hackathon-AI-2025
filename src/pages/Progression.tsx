@@ -7,36 +7,87 @@ import { supabase } from "@/integrations/supabase/client";
 import Navigation from "@/components/Navigation";
 import { useToast } from "@/hooks/use-toast";
 import ChatBot from "@/components/ChatBot";
+import { CSB_COURSES, CSB_MAJOR_NAME, CSB_TOTAL_CREDITS, CSB_TRACKS } from "@/data/csbProgram";
 
-const tracks = [
-  { id: "math", name: "Mathematics", color: "bg-blue-500", courses: [
-    { code: "MATH021", name: "Calculus I", prereqs: [] },
-    { code: "MATH022", name: "Calculus II", prereqs: ["MATH021"] },
-    { code: "MATH205", name: "Linear Algebra", prereqs: ["MATH022"] },
-  ]},
-  { id: "cs", name: "CS Foundations", color: "bg-purple-500", courses: [
-    { code: "CSE007", name: "Intro Programming", prereqs: [] },
-    { code: "CSE017", name: "Data Structures", prereqs: ["CSE007"] },
-    { code: "CSE109", name: "Systems Software", prereqs: ["CSE017"] },
-  ]},
-  { id: "business", name: "Business Core", color: "bg-green-500", courses: [
-    { code: "BUS001", name: "Business Principles", prereqs: [] },
-    { code: "BUS002", name: "Business Analytics", prereqs: ["BUS001"] },
-    { code: "ECO029", name: "Microeconomics", prereqs: ["BUS001"] },
-  ]},
-  { id: "engineering", name: "Engineering Core", color: "bg-orange-500", courses: [
-    { code: "ENGR001", name: "Engineering Design", prereqs: [] },
-    { code: "ENGR002", name: "Engineering Analysis", prereqs: ["ENGR001", "MATH021"] },
-    { code: "ECO045", name: "Engineering Economics", prereqs: ["ECO029"] },
-  ]},
+const DEFAULT_TRACKS = [
+  {
+    id: "math",
+    name: "Mathematics",
+    color: "bg-blue-500",
+    creditsLabel: "",
+    courses: [
+      { code: "MATH021", name: "Calculus I", prereqs: [] },
+      { code: "MATH022", name: "Calculus II", prereqs: ["MATH021"] },
+      { code: "MATH205", name: "Linear Algebra", prereqs: ["MATH022"] },
+    ],
+  },
+  {
+    id: "cs",
+    name: "CS Foundations",
+    color: "bg-purple-500",
+    creditsLabel: "",
+    courses: [
+      { code: "CSE007", name: "Intro Programming", prereqs: [] },
+      { code: "CSE017", name: "Data Structures", prereqs: ["CSE007"] },
+      { code: "CSE109", name: "Systems Software", prereqs: ["CSE017"] },
+    ],
+  },
+  {
+    id: "business",
+    name: "Business Core",
+    color: "bg-green-500",
+    creditsLabel: "",
+    courses: [
+      { code: "BUS001", name: "Business Principles", prereqs: [] },
+      { code: "BUS002", name: "Business Analytics", prereqs: ["BUS001"] },
+      { code: "ECO029", name: "Microeconomics", prereqs: ["BUS001"] },
+    ],
+  },
+  {
+    id: "engineering",
+    name: "Engineering Core",
+    color: "bg-orange-500",
+    creditsLabel: "",
+    courses: [
+      { code: "ENGR001", name: "Engineering Design", prereqs: [] },
+      { code: "ENGR002", name: "Engineering Analysis", prereqs: ["ENGR001", "MATH021"] },
+      { code: "ECO045", name: "Engineering Economics", prereqs: ["ECO029"] },
+    ],
+  },
 ];
+
+const CSB_TRACK_COLORS = [
+  "bg-blue-500",
+  "bg-purple-500",
+  "bg-emerald-500",
+  "bg-amber-500",
+  "bg-pink-500",
+  "bg-indigo-500",
+  "bg-cyan-500",
+  "bg-rose-500",
+];
+
+const CSB_FLOWCHART_TRACKS = CSB_TRACKS.map((track, index) => ({
+  id: track.id,
+  name: track.name,
+  creditsLabel: track.creditsLabel,
+  color: CSB_TRACK_COLORS[index % CSB_TRACK_COLORS.length],
+  courses: track.courses.map((course) => ({
+    code: course.code,
+    name: course.name,
+    prereqs: course.prerequisites,
+    credits: course.credits,
+  })),
+}));
 
 const Progression = () => {
   const { toast } = useToast();
   const [completed, setCompleted] = useState<Set<string>>(new Set());
+  const [userMajor, setUserMajor] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCompleted();
+    fetchProfile();
   }, []);
 
   const fetchCompleted = async () => {
@@ -44,6 +95,13 @@ const Progression = () => {
     if (!user) return;
     const { data } = await supabase.from("user_courses").select("courses(code)").eq("user_id", user.id).eq("completed", true);
     setCompleted(new Set(data?.map((c: any) => c.courses.code) || []));
+  };
+
+  const fetchProfile = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data: profile } = await supabase.from("profiles").select("major").eq("id", user.id).single();
+    setUserMajor(profile?.major ?? null);
   };
 
   const toggleCourse = async (code: string) => {
@@ -60,11 +118,21 @@ const Progression = () => {
     } else {
       await supabase.from("user_courses").insert({ user_id: user.id, course_id: course.id, completed: true });
       setCompleted(prev => new Set(prev).add(code));
-      toast({ title: "Course unlocked! 🎉", description: `${code} marked complete. New courses may now be available.` });
+      toast({ title: "Course unlocked", description: `${code} marked complete. New courses may now be available.` });
     }
   };
 
   const isAvailable = (course: any) => course.prereqs.every((p: string) => completed.has(p));
+
+  const isCsb = userMajor === CSB_MAJOR_NAME;
+  const activeTracks = isCsb ? CSB_FLOWCHART_TRACKS : DEFAULT_TRACKS;
+  const activeCourses = activeTracks.flatMap((track) => track.courses);
+  const completedInActive = activeCourses.filter((course) => completed.has(course.code)).length;
+  const totalActiveCourses = activeCourses.length;
+  const overallPercent = totalActiveCourses === 0 ? 0 : (completedInActive / totalActiveCourses) * 100;
+  const csbCreditsEarned = CSB_COURSES.reduce((sum, course) => {
+    return completed.has(course.code) ? sum + course.credits : sum;
+  }, 0);
 
   return (
     <div className="min-h-screen bg-background">
@@ -75,23 +143,51 @@ const Progression = () => {
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2 flex items-center gap-2">
             <Star className="h-8 w-8 text-yellow-500" />
-            Course Progression Flowchart
+            {isCsb ? "⭐ CSB Course Progression Flowchart" : "Course Progression Flowchart"}
           </h1>
-          <p className="text-muted-foreground">Complete courses to unlock new ones in your path</p>
+          <p className="text-muted-foreground">
+            Complete courses to unlock new ones in your path
+          </p>
         </div>
 
         <Card className="p-6 mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold">Overall Progress</h2>
-            <Badge variant="secondary" className="text-lg px-4 py-1">
-              {completed.size} / {tracks.flatMap(t => t.courses).length} courses
-            </Badge>
-          </div>
-          <Progress value={(completed.size / tracks.flatMap(t => t.courses).length) * 100} className="h-3" />
+          {isCsb ? (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground tracking-widest">
+                    Credits earned
+                  </p>
+                  <div className="text-2xl font-bold">
+                    {csbCreditsEarned} / {CSB_TOTAL_CREDITS}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground tracking-widest">
+                    Overall progress
+                  </p>
+                  <div className="text-2xl font-bold">
+                    {completedInActive} / {totalActiveCourses} courses
+                  </div>
+                </div>
+              </div>
+              <Progress value={overallPercent} className="h-3" />
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold">Overall Progress</h2>
+                <Badge variant="secondary" className="text-lg px-4 py-1">
+                  {completedInActive} / {activeCourses.length} courses
+                </Badge>
+              </div>
+              <Progress value={overallPercent} className="h-3" />
+            </>
+          )}
         </Card>
 
         <div className="space-y-8">
-          {tracks.map(track => {
+          {activeTracks.map(track => {
             const trackCompleted = track.courses.filter(c => completed.has(c.code)).length;
             const trackTotal = track.courses.length;
             const trackProgress = (trackCompleted / trackTotal) * 100;
@@ -100,7 +196,12 @@ const Progression = () => {
               <Card key={track.id} className="p-6">
                 <div className="flex items-center gap-3 mb-4">
                   <div className={`w-4 h-4 rounded ${track.color}`} />
-                  <h3 className="text-xl font-semibold">{track.name}</h3>
+                  <div>
+                    <h3 className="text-xl font-semibold">{track.name}</h3>
+                    {track.creditsLabel && (
+                      <p className="text-xs text-muted-foreground">{track.creditsLabel}</p>
+                    )}
+                  </div>
                   <Badge variant="outline">{trackCompleted} / {trackTotal}</Badge>
                 </div>
                 <Progress value={trackProgress} className="h-2 mb-6" />
@@ -121,7 +222,10 @@ const Progression = () => {
                           }`}
                         >
                           <div className="flex items-start justify-between mb-2">
-                            <div className="font-semibold">{course.code}</div>
+                            <div className="font-semibold">
+                              {course.code}
+                              {course.credits ? ` — ${course.credits} cr` : ""}
+                            </div>
                             {isCompleted ? (
                               <CheckCircle className="w-5 h-5 text-green-500" />
                             ) : canTake ? (

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +8,7 @@ import { BookOpen, Calendar, TrendingUp, GraduationCap } from "lucide-react";
 import Navigation from "@/components/Navigation";
 import ChatBot from "@/components/ChatBot";
 import { useToast } from "@/hooks/use-toast";
+import { CSB_MAJOR_NAME, CSB_TRACKS, CSB_TOTAL_CREDITS } from "@/data/csbProgram";
 
 interface CurrentCourse {
   userCourseId: string;
@@ -28,7 +29,32 @@ const Dashboard = () => {
   const [techProgress, setTechProgress] = useState(0);
   const [freeProgress, setFreeProgress] = useState(0);
   const [currentCourses, setCurrentCourses] = useState<CurrentCourse[]>([]);
+  const [userMajor, setUserMajor] = useState<string | null>(null);
+  const [completedCourseCodes, setCompletedCourseCodes] = useState<Set<string>>(new Set());
   const { toast } = useToast();
+
+  const csbCourses = useMemo(
+    () => CSB_TRACKS.flatMap((track) => track.courses),
+    []
+  );
+  const csbCreditsEarned = useMemo(() => {
+    return csbCourses.reduce((sum, course) => {
+      return completedCourseCodes.has(course.code) ? sum + course.credits : sum;
+    }, 0);
+  }, [csbCourses, completedCourseCodes]);
+  const csbCourseCount = csbCourses.length;
+  const csbCompletedCourses = useMemo(() => {
+    return csbCourses.filter((course) => completedCourseCodes.has(course.code)).length;
+  }, [csbCourses, completedCourseCodes]);
+  const csbAvailableCourses = useMemo(() => {
+    return csbCourses
+      .filter(
+        (course) =>
+          !completedCourseCodes.has(course.code) &&
+          course.prerequisites.every((code) => completedCourseCodes.has(code))
+      )
+      .slice(0, 3);
+  }, [csbCourses, completedCourseCodes]);
 
   useEffect(() => {
     checkAuth();
@@ -44,13 +70,24 @@ const Dashboard = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("major")
+      .eq("id", user.id)
+      .single();
+    setUserMajor(profile?.major ?? null);
+
     const { data: completed } = await supabase
       .from("user_courses")
-      .select("courses(category)")
+      .select("courses(code, category)")
       .eq("user_id", user.id)
       .eq("completed", true);
 
     setCompletedCourses(completed?.length || 0);
+    const completedCodes = new Set(
+      completed?.map((c: any) => c.courses?.code).filter((code: string | null | undefined): code is string => Boolean(code)) || []
+    );
+    setCompletedCourseCodes(completedCodes);
 
     const counts: Record<string, number> = { Major: 0, HSS: 0, Tech: 0, Free: 0 };
     completed?.forEach((c: any) => {
@@ -122,6 +159,64 @@ const Dashboard = () => {
           </h1>
           <p className="text-muted-foreground">Track your progress and plan your path to graduation</p>
         </div>
+
+        {userMajor === CSB_MAJOR_NAME && (
+          <Card className="mb-6 border-primary/40">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <GraduationCap className="h-4 w-4 text-primary" />
+                Computer Science & Business (CSB)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap gap-6">
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground tracking-widest">
+                    Credits earned
+                  </p>
+                  <div className="text-2xl font-bold">
+                    {csbCreditsEarned} / {CSB_TOTAL_CREDITS}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground tracking-widest">
+                    Overall progress
+                  </p>
+                  <div className="text-2xl font-bold">
+                    {csbCompletedCourses} / {csbCourseCount} courses
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-sm text-muted-foreground">
+                As a first-year CSB student you can start with calculus, introductory programming, business foundations, and communications before unlocking the systems and bridge courses.
+              </p>
+
+              <div>
+                <p className="text-xs uppercase text-muted-foreground tracking-widest mb-2">
+                  Next available CSB courses
+                </p>
+                {csbAvailableCourses.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Begin with MATH 021, CSE 007, BUS 001, BUS 003, ECO 001, and MGT 043 to unlock the rest of the plan.
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-3">
+                    {csbAvailableCourses.map((course) => (
+                      <div
+                        key={course.code}
+                        className="flex items-center gap-2 rounded-lg border px-3 py-2 bg-primary/5"
+                      >
+                        <span className="font-semibold">{course.code}</span>
+                        <span className="text-sm text-muted-foreground">{course.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="grid gap-4 md:grid-cols-3 mb-6">
           <Card>
@@ -248,12 +343,12 @@ const Dashboard = () => {
                 >
                   <div>
                     <div className="font-medium">
-                      {course.code} · {course.name}
+                      {course.code} - {course.name}
                     </div>
                     {course.semesterSeason && (
                       <div className="text-xs text-muted-foreground">
                         {course.semesterSeason} {course.semesterYear}
-                        {course.credits ? ` · ${course.credits} credits` : ""}
+                        {course.credits ? ` - ${course.credits} credits` : ""}
                       </div>
                     )}
                   </div>

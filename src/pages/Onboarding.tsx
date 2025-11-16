@@ -6,6 +6,7 @@ import { Building2, Target, Settings, ChevronRight, ChevronLeft } from "lucide-r
 import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { CSB_MAJOR_NAME } from "@/data/csbProgram";
 
 const colleges = [
   { id: "cas", name: "College of Arts & Sciences", abbr: "CAS" },
@@ -39,6 +40,7 @@ const majors = [
   "Economics",
   "Psychology",
   "Biology",
+  CSB_MAJOR_NAME,
 ];
 
 const interestAreas = [
@@ -83,6 +85,9 @@ const Onboarding = () => {
 
     if (profile?.major) {
       setSelectedMajor(profile.major);
+      if (profile.major === CSB_MAJOR_NAME) {
+        setSelectedCollege("interdisciplinary");
+      }
     }
   };
 
@@ -188,7 +193,12 @@ const Onboarding = () => {
               <Label className="mb-2 block">Major</Label>
               <Select
                 value={selectedMajor}
-                onValueChange={setSelectedMajor}
+                onValueChange={(value) => {
+                  setSelectedMajor(value);
+                  if (value === CSB_MAJOR_NAME) {
+                    setSelectedCollege("interdisciplinary");
+                  }
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select your major or choose Undecided" />
@@ -202,6 +212,7 @@ const Onboarding = () => {
                 </SelectContent>
               </Select>
             </div>
+
           </div>
         )}
 
@@ -235,7 +246,7 @@ const Onboarding = () => {
 
             {selectedGoals.includes("explore") && (
               <div className="mt-8 max-w-md">
-                <Label className="mb-2 block">Areas you’re interested in exploring</Label>
+                <Label className="mb-2 block">Areas you're interested in exploring</Label>
                 <Select
                   value={selectedInterest}
                   onValueChange={setSelectedInterest}

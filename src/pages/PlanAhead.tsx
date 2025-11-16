@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import Navigation from "@/components/Navigation";
 import ChatBot from "@/components/ChatBot";
+import { CSB_CATALOG_COURSES, CSB_MAJOR_NAME, CSB_PLAN_TEMPLATE } from "@/data/csbProgram";
 
 interface Course {
   id: string;
@@ -66,6 +67,7 @@ const PlanAhead = () => {
   const [secondMajor, setSecondMajor] = useState("");
   const [advisorNotes, setAdvisorNotes] = useState("");
   const [overloadInfo, setOverloadInfo] = useState<{ needed: boolean; semesters: number; creditsPerSemester: number } | null>(null);
+  const [csbPlanApplied, setCsbPlanApplied] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -74,6 +76,17 @@ const PlanAhead = () => {
     loadProfile();
   }, []);
 
+  useEffect(() => {
+    if (
+      userMajor === CSB_MAJOR_NAME &&
+      availableCourses.length > 0 &&
+      semesters.length === 0 &&
+      !csbPlanApplied
+    ) {
+      applyCsbPlan();
+    }
+  }, [userMajor, availableCourses.length, semesters.length, csbPlanApplied]);
+
   const checkAuth = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) navigate("/auth");
@@ -81,7 +94,23 @@ const PlanAhead = () => {
 
   const fetchCourses = async () => {
     const { data } = await supabase.from("courses").select("*").order("code");
-    setAvailableCourses(data || []);
+    setAvailableCourses(mergeCsbCatalog(data || []));
+  };
+
+  const mergeCsbCatalog = (list: Course[]) => {
+    const codes = new Set(list.map((course) => course.code));
+    CSB_CATALOG_COURSES.forEach((course) => {
+      if (!codes.has(course.code)) {
+        list.push({
+          id: course.id,
+          code: course.code,
+          name: course.name,
+          credits: course.credits,
+          category: "Major",
+        } as Course);
+      }
+    });
+    return list;
   };
 
   const loadProfile = async () => {
@@ -124,6 +153,40 @@ const PlanAhead = () => {
       }
       setSemesters(loadedSemesters);
     }
+  };
+
+  const applyCsbPlan = () => {
+    const hydrated = CSB_PLAN_TEMPLATE.map((template) => {
+      const courses = template.courseCodes
+        .map((code) => {
+          const existing = availableCourses.find((course) => course.code === code);
+          if (existing) return existing;
+          const fallback = CSB_CATALOG_COURSES.find((course) => course.code === code);
+          if (!fallback) return null;
+          return {
+            id: fallback.id,
+            code: fallback.code,
+            name: fallback.name,
+            credits: fallback.credits,
+            category: fallback.category,
+          } as Course;
+        })
+        .filter((course): course is Course => Boolean(course));
+
+      return {
+        year: template.year,
+        season: template.season,
+        courses,
+      };
+    });
+
+    setSemesters(hydrated);
+    setCsbPlanApplied(true);
+    setOverloadInfo(calculateOverloadInfo(hydrated));
+    toast({
+      title: "CSB 4-year plan generated",
+      description: "Eight-semester plan loaded with max 18 credits per term.",
+    });
   };
 
   const generateFourYearPlan = async () => {
@@ -293,6 +356,16 @@ const PlanAhead = () => {
 
   const getTotalCredits = (courses: Course[]) => courses.reduce((sum, c) => sum + c.credits, 0);
 
+  const calculateOverloadInfo = (plan: SemesterPlan[]) => {
+    const overloaded = plan.filter((semester) => getTotalCredits(semester.courses) > 18);
+    if (overloaded.length === 0) {
+      return { needed: false, semesters: 0, creditsPerSemester: 0 };
+    }
+
+    const heaviest = Math.max(...overloaded.map((semester) => getTotalCredits(semester.courses)));
+    return { needed: true, semesters: overloaded.length, creditsPerSemester: heaviest };
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5">
       <Navigation />
@@ -300,6 +373,25 @@ const PlanAhead = () => {
       <div className="max-w-7xl mx-auto p-6">
         <h1 className="text-4xl font-bold mb-2">Plan Ahead - 4 Year Course Plan</h1>
         <p className="text-muted-foreground mb-8">Generate and customize your complete degree plan with AI assistance</p>
+
+        {userMajor === CSB_MAJOR_NAME && (
+          <Card className="p-6 mb-6 border-primary/40 bg-primary/5">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase text-muted-foreground tracking-widest">
+                  CSB eight-semester roadmap
+                </p>
+                <h2 className="text-2xl font-semibold mt-1">Computer Science & Business</h2>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Stay on track to hit 136 credits with an 8-semester schedule capped at 18 credits per term.
+                </p>
+              </div>
+              <Button onClick={applyCsbPlan} variant="secondary">
+                Load CSB Plan
+              </Button>
+            </div>
+          </Card>
+        )}
 
         <Card className="p-6 mb-6">
           <h2 className="text-2xl font-semibold mb-4">AI Plan Generator</h2>

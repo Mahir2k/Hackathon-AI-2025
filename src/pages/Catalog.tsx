@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Search, BookOpen, ExternalLink, Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getCollegeForDepartment } from "@/lib/utils";
+import { CSB_CATALOG_COURSES } from "@/data/csbProgram";
 import {
   Dialog,
   DialogContent,
@@ -57,8 +58,8 @@ const Catalog = () => {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [selectedDepartment, setSelectedDepartment] = useState<string>("All");
+  const [departmentOptions, setDepartmentOptions] = useState<string[]>(["All"]);
   const [userCollege, setUserCollege] = useState<string | null>(null);
-  const [userMajor, setUserMajor] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [offerings, setOfferings] = useState<CourseOffering[]>([]);
@@ -82,7 +83,6 @@ const Catalog = () => {
         .single();
 
       setUserCollege(profile?.college ?? null);
-      setUserMajor(profile?.major ?? null);
     };
 
     fetchProfile();
@@ -170,12 +170,8 @@ const Catalog = () => {
       });
     }
 
-    if (userMajor && userMajor !== "Undecided") {
-      filtered = filtered.filter((c) => c.department === userMajor);
-    }
-
     setFilteredCourses(filtered);
-  }, [search, selectedCategory, selectedDepartment, courses]);
+  }, [search, selectedCategory, selectedDepartment, courses, userCollege]);
 
   const fetchCourses = async () => {
     const { data, error } = await supabase
@@ -190,13 +186,31 @@ const Catalog = () => {
         variant: "destructive",
       });
     } else {
-      setCourses(data || []);
-      setFilteredCourses(data || []);
+      const allCourses = ensureCsbCoverage(data || []);
+      setCourses(allCourses);
+      setFilteredCourses(allCourses);
+
+      const uniqueDepartments = Array.from(
+        new Set(allCourses.map((c) => c.department))
+      ).sort();
+      setDepartmentOptions(["All", ...uniqueDepartments]);
     }
   };
 
+  const ensureCsbCoverage = (list: Course[]) => {
+    const codes = new Set(list.map((course) => course.code));
+    CSB_CATALOG_COURSES.forEach((course) => {
+      if (!codes.has(course.code)) {
+        list.push({
+          ...course,
+          category: "Major",
+        });
+      }
+    });
+    return list;
+  };
+
   const categories = ["All", "Major", "HSS", "Tech", "Free"];
-  const departments = ["All", "Computer Science", "Mechanical Engineering", "Electrical Engineering", "Civil Engineering", "Chemical Engineering", "Business", "Economics", "Psychology", "Biology"];
 
   const getCategoryColor = (category: string) => {
     switch (category) {
@@ -269,7 +283,7 @@ const Catalog = () => {
             <div>
               <label className="text-sm font-medium mb-2 block">Department / Major</label>
               <div className="flex gap-2 flex-wrap">
-                {departments.map((dept) => (
+                {departmentOptions.map((dept) => (
                   <Button
                     key={dept}
                     variant={selectedDepartment === dept ? "default" : "outline"}
@@ -364,7 +378,7 @@ const Catalog = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {selectedCourse ? `${selectedCourse.code} · ${selectedCourse.name}` : "Course details"}
+              {selectedCourse ? `${selectedCourse.code} - ${selectedCourse.name}` : "Course details"}
             </DialogTitle>
             <DialogDescription>
               Course offerings by semester and top comments from RateMyProfessors (where available).
@@ -372,7 +386,7 @@ const Catalog = () => {
           </DialogHeader>
 
           {loadingDetails && (
-            <div className="text-sm text-muted-foreground">Loading instructor details…</div>
+            <div className="text-sm text-muted-foreground">Loading instructor details...</div>
           )}
 
           {!loadingDetails && selectedCourse && (
@@ -393,7 +407,7 @@ const Catalog = () => {
                         <div className="flex justify-between">
                           <span className="font-medium">
                             {offering.season} {offering.year}
-                            {offering.section ? ` · Sec ${offering.section}` : ""}
+                            {offering.section ? ` - Sec ${offering.section}` : ""}
                           </span>
                           {offering.crn && <span className="text-muted-foreground">CRN {offering.crn}</span>}
                         </div>
@@ -401,7 +415,7 @@ const Catalog = () => {
                           <span>{offering.instructor_name ?? "Instructor TBA"}</span>
                           {offering.meeting_days && offering.start_time && offering.end_time && (
                             <span className="text-muted-foreground">
-                              {offering.meeting_days.join("")} {offering.start_time}–{offering.end_time}
+                              {offering.meeting_days.join("")} {offering.start_time}-{offering.end_time}
                             </span>
                           )}
                         </div>

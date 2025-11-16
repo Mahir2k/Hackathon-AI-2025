@@ -12,9 +12,17 @@ const COLLEGE_BY_DEPARTMENT: Record<string, string> = {
   "Civil Engineering": "rceas",
   "Chemical Engineering": "rceas",
   Business: "business",
+  "College of Business": "business",
   Economics: "cas",
   Psychology: "cas",
   Biology: "cas",
+  Mathematics: "cas",
+  Marketing: "business",
+  Accounting: "business",
+  Finance: "business",
+  "Supply Chain": "business",
+  "Management": "business",
+  CSB: "interdisciplinary",
 };
 
 export function getCollegeForDepartment(
